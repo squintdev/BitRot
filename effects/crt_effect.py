@@ -30,7 +30,8 @@ class CRTEffect(BaseEffect):
             "static": 0,
             "contrast": 0,
             "saturation": 0,
-            "reflection": 0
+            "reflection": 0,
+            "vhs_artifacts": 0
         }
         
         # Create a static RGB mask pattern for the phosphor dots effect
@@ -164,7 +165,7 @@ class CRTEffect(BaseEffect):
                     frame = self.apply_rgb_mask(frame)
                 
                 # 7. Apply VHS artifacts if enabled
-                if self.params["vhs_artifacts"] > 0:
+                if self.params.get("vhs_artifacts", 0) > 0:
                     frame = self.apply_vhs_artifacts(frame)
                 
                 # 8. Apply static and noise

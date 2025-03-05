@@ -18,9 +18,17 @@ class MainWindow(QMainWindow):
         
         # Initialize variables
         self.video_path = None
+        
         try:
-            self.effect_processor = CRTEffect()
-            self.current_effect = "CRT TV"  # Track current effect
+            # Initialize effect processors
+            self.effect_processors = {
+                "CRT TV": CRTEffect(),
+                "VHS Glitch": EffectFactory.create_effect("VHS Glitch"),
+                "Analog Circuit": EffectFactory.create_effect("Analog Circuit")
+            }
+            
+            # Set current effect for UI purposes only
+            self.current_effect = "CRT TV"
             
             # Store effect control panels
             self.effect_control_panels = {}
@@ -33,6 +41,7 @@ class MainWindow(QMainWindow):
             
             # Set up UI
             self.init_ui()
+            self.check_slider_connections()
         except Exception as e:
             print(f"Error initializing app: {str(e)}")
         
@@ -117,6 +126,26 @@ class MainWindow(QMainWindow):
         self.hq_preview_check.setFont(QFont("Fixedsys", 11))
         self.hq_preview_check.setChecked(False)
         self.hq_preview_check.stateChanged.connect(self.toggle_high_quality_effects)
+        # Make the checkbox more visible with custom styling
+        self.hq_preview_check.setStyleSheet("""
+            QCheckBox {
+                color: #00ffff; /* Bright cyan text */
+                background-color: #33334C; /* Slightly lighter background */
+                padding: 5px;
+                border-radius: 5px;
+                border: 1px solid #444460;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+                background-color: #252530;
+                border: 2px solid #00B0B0;
+                border-radius: 4px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #00C0C0;
+            }
+        """)
         top_bar.addWidget(self.hq_preview_check)
         
         main_layout.addLayout(top_bar)
@@ -265,59 +294,75 @@ class MainWindow(QMainWindow):
         # Create sliders all defaulting to 0
         self.vhs_tracking_error = self.create_slider_with_label("Tracking Error", 0)
         self.vhs_color_bleeding = self.create_slider_with_label("Color Bleeding", 0)
-        self.vhs_noise = self.create_slider_with_label("Tape Noise", 0)
+        self.vhs_noise = self.create_slider_with_label("Noise", 0)
+        self.vhs_static_lines = self.create_slider_with_label("Static Lines", 0)
         
-        # Add sliders to the group
         tape_layout.addLayout(self.vhs_tracking_error[0])
         tape_layout.addLayout(self.vhs_color_bleeding[0])
         tape_layout.addLayout(self.vhs_noise[0])
+        tape_layout.addLayout(self.vhs_static_lines[0])
         
-        # Add the group to the panel
         layout.addWidget(tape_group)
         
-        # Signal Group
-        signal_group = QGroupBox("Signal Effects")
-        signal_layout = QVBoxLayout(signal_group)
+        # Second group - Video Distortion
+        distortion_group = QGroupBox("Video Distortion")
+        distortion_layout = QVBoxLayout(distortion_group)
         
-        self.vhs_signal_noise = self.create_slider_with_label("Signal Noise", 0)
-        self.vhs_interlacing = self.create_slider_with_label("Interlacing Artifacts", 0)
-        self.vhs_vertical_hold = self.create_slider_with_label("Vertical Hold", 0)
-        self.vhs_horizontal_jitter = self.create_slider_with_label("Horizontal Jitter", 0)
+        self.vhs_jitter = self.create_slider_with_label("Jitter", 0)
+        self.vhs_distortion = self.create_slider_with_label("Distortion", 0)
+        self.vhs_contrast = self.create_slider_with_label("Contrast", 0)
+        self.vhs_color_loss = self.create_slider_with_label("Color Loss", 0)
         
-        signal_layout.addLayout(self.vhs_signal_noise[0])
-        signal_layout.addLayout(self.vhs_interlacing[0])
-        signal_layout.addLayout(self.vhs_vertical_hold[0])
-        signal_layout.addLayout(self.vhs_horizontal_jitter[0])
+        distortion_layout.addLayout(self.vhs_jitter[0])
+        distortion_layout.addLayout(self.vhs_distortion[0])
+        distortion_layout.addLayout(self.vhs_contrast[0])
+        distortion_layout.addLayout(self.vhs_color_loss[0])
         
-        layout.addWidget(signal_group)
+        layout.addWidget(distortion_group)
         
-        # Color Artifacts
-        color_group = QGroupBox("Color Artifacts")
+        # Third group - Playback
+        playback_group = QGroupBox("Playback Issues")
+        playback_layout = QVBoxLayout(playback_group)
+        
+        self.vhs_ghosting = self.create_slider_with_label("Ghosting", 0)
+        self.vhs_scanlines = self.create_slider_with_label("Scanlines", 0)
+        self.vhs_head_switching = self.create_slider_with_label("Head Switching", 0)
+        self.vhs_interlacing = self.create_slider_with_label("Interlacing", 0)
+        
+        playback_layout.addLayout(self.vhs_ghosting[0])
+        playback_layout.addLayout(self.vhs_scanlines[0])
+        playback_layout.addLayout(self.vhs_head_switching[0])
+        playback_layout.addLayout(self.vhs_interlacing[0])
+        
+        layout.addWidget(playback_group)
+        
+        # Fourth group - Degradation
+        degradation_group = QGroupBox("Tape Degradation")
+        degradation_layout = QVBoxLayout(degradation_group)
+        
+        self.vhs_luma_noise = self.create_slider_with_label("Luma Noise", 0)
+        self.vhs_chroma_noise = self.create_slider_with_label("Chroma Noise", 0)
+        self.vhs_tape_wear = self.create_slider_with_label("Tape Wear", 0)
+        self.vhs_dropout = self.create_slider_with_label("Dropout", 0)
+        
+        degradation_layout.addLayout(self.vhs_luma_noise[0])
+        degradation_layout.addLayout(self.vhs_chroma_noise[0])
+        degradation_layout.addLayout(self.vhs_tape_wear[0])
+        degradation_layout.addLayout(self.vhs_dropout[0])
+        
+        layout.addWidget(degradation_group)
+        
+        # Fifth group - Color Adjustments
+        color_group = QGroupBox("Color Adjustments")
         color_layout = QVBoxLayout(color_group)
         
-        self.vhs_color_bleed = self.create_slider_with_label("Color Bleed", 0)
-        self.vhs_color_shift = self.create_slider_with_label("Color Shift", 0)
-        self.vhs_color_banding = self.create_slider_with_label("Color Banding", 0)
+        self.vhs_saturation = self.create_slider_with_label("Saturation", 0)
+        self.vhs_signal_noise = self.create_slider_with_label("Signal Noise", 0)
         
-        color_layout.addLayout(self.vhs_color_bleed[0])
-        color_layout.addLayout(self.vhs_color_shift[0])
-        color_layout.addLayout(self.vhs_color_banding[0])
+        color_layout.addLayout(self.vhs_saturation[0])
+        color_layout.addLayout(self.vhs_signal_noise[0])
         
         layout.addWidget(color_group)
-        
-        # Image Adjustments
-        adjust_group = QGroupBox("Image Adjustments")
-        adjust_layout = QVBoxLayout(adjust_group)
-        
-        self.vhs_brightness_flicker = self.create_slider_with_label("Brightness Flicker", 0)
-        self.vhs_contrast = self.create_slider_with_label("Contrast", 0)
-        self.vhs_saturation = self.create_slider_with_label("Saturation", 0)
-        
-        adjust_layout.addLayout(self.vhs_brightness_flicker[0])
-        adjust_layout.addLayout(self.vhs_contrast[0])
-        adjust_layout.addLayout(self.vhs_saturation[0])
-        
-        layout.addWidget(adjust_group)
         
         return panel
     
@@ -331,11 +376,11 @@ class MainWindow(QMainWindow):
         feedback_layout = QVBoxLayout(feedback_group)
         
         # All sliders default to 0
-        self.analog_feedback_intensity = self.create_slider_with_label("Infinite Tunnels", 0)
-        self.analog_feedback_delay = self.create_slider_with_label("Echo Trails", 0)
+        self.circuit_feedback_intensity = self.create_slider_with_label("Infinite Tunnels", 0)
+        self.circuit_feedback_delay = self.create_slider_with_label("Echo Trails", 0)
         
-        feedback_layout.addLayout(self.analog_feedback_intensity[0])
-        feedback_layout.addLayout(self.analog_feedback_delay[0])
+        feedback_layout.addLayout(self.circuit_feedback_intensity[0])
+        feedback_layout.addLayout(self.circuit_feedback_delay[0])
         
         layout.addWidget(feedback_group)
         
@@ -343,13 +388,13 @@ class MainWindow(QMainWindow):
         distortion_group = QGroupBox("Horizontal & Vertical Distortions")
         distortion_layout = QVBoxLayout(distortion_group)
         
-        self.analog_h_sync_skew = self.create_slider_with_label("H-Glitching", 0)
-        self.analog_v_sync_roll = self.create_slider_with_label("V-Glitching", 0)
-        self.analog_wave_distortion = self.create_slider_with_label("Wobblevision", 0)
+        self.circuit_h_sync_skew = self.create_slider_with_label("H-Glitching", 0)
+        self.circuit_v_sync_roll = self.create_slider_with_label("V-Glitching", 0)
+        self.circuit_wave_distortion = self.create_slider_with_label("Wobblevision", 0)
         
-        distortion_layout.addLayout(self.analog_h_sync_skew[0])
-        distortion_layout.addLayout(self.analog_v_sync_roll[0])
-        distortion_layout.addLayout(self.analog_wave_distortion[0])
+        distortion_layout.addLayout(self.circuit_h_sync_skew[0])
+        distortion_layout.addLayout(self.circuit_v_sync_roll[0])
+        distortion_layout.addLayout(self.circuit_wave_distortion[0])
         
         layout.addWidget(distortion_group)
         
@@ -357,15 +402,15 @@ class MainWindow(QMainWindow):
         chroma_group = QGroupBox("Chromatic Distortions")
         chroma_layout = QVBoxLayout(chroma_group)
         
-        self.analog_rainbow_banding = self.create_slider_with_label("Rainbow Banding", 0)
-        self.analog_color_inversion = self.create_slider_with_label("Color Inversion", 0)
-        self.analog_oversaturate = self.create_slider_with_label("Overdriven Color", 0)
-        self.analog_squint_modulation = self.create_slider_with_label("Squint Modulation", 0)
+        self.circuit_rainbow_banding = self.create_slider_with_label("Rainbow Banding", 0)
+        self.circuit_color_inversion = self.create_slider_with_label("Color Inversion", 0)
+        self.circuit_oversaturate = self.create_slider_with_label("Overdriven Color", 0)
+        self.circuit_squint_modulation = self.create_slider_with_label("Squint Modulation", 0)
         
-        chroma_layout.addLayout(self.analog_rainbow_banding[0])
-        chroma_layout.addLayout(self.analog_color_inversion[0])
-        chroma_layout.addLayout(self.analog_oversaturate[0])
-        chroma_layout.addLayout(self.analog_squint_modulation[0])
+        chroma_layout.addLayout(self.circuit_rainbow_banding[0])
+        chroma_layout.addLayout(self.circuit_color_inversion[0])
+        chroma_layout.addLayout(self.circuit_oversaturate[0])
+        chroma_layout.addLayout(self.circuit_squint_modulation[0])
         
         layout.addWidget(chroma_group)
         
@@ -373,13 +418,13 @@ class MainWindow(QMainWindow):
         glitch_group = QGroupBox("Glitchy Digital-Analog Hybrid")
         glitch_layout = QVBoxLayout(glitch_group)
         
-        self.analog_pixel_smear = self.create_slider_with_label("Pixel Smearing", 0)
-        self.analog_frame_repeat = self.create_slider_with_label("Ghosted Frames", 0)
-        self.analog_block_glitch = self.create_slider_with_label("Block Glitches", 0)
+        self.circuit_pixel_smear = self.create_slider_with_label("Pixel Smearing", 0)
+        self.circuit_frame_repeat = self.create_slider_with_label("Ghosted Frames", 0)
+        self.circuit_block_glitch = self.create_slider_with_label("Block Glitches", 0)
         
-        glitch_layout.addLayout(self.analog_pixel_smear[0])
-        glitch_layout.addLayout(self.analog_frame_repeat[0])
-        glitch_layout.addLayout(self.analog_block_glitch[0])
+        glitch_layout.addLayout(self.circuit_pixel_smear[0])
+        glitch_layout.addLayout(self.circuit_frame_repeat[0])
+        glitch_layout.addLayout(self.circuit_block_glitch[0])
         
         layout.addWidget(glitch_group)
         
@@ -387,13 +432,13 @@ class MainWindow(QMainWindow):
         noise_group = QGroupBox("Noise & Signal Degradation")
         noise_layout = QVBoxLayout(noise_group)
         
-        self.analog_rf_noise = self.create_slider_with_label("RF Noise", 0)
-        self.analog_dropouts = self.create_slider_with_label("Dropouts", 0)
-        self.analog_contrast_crush = self.create_slider_with_label("Contrast Crush", 0)
+        self.circuit_rf_noise = self.create_slider_with_label("RF Noise", 0)
+        self.circuit_dropouts = self.create_slider_with_label("Dropouts", 0)
+        self.circuit_contrast_crush = self.create_slider_with_label("Contrast Crush", 0)
         
-        noise_layout.addLayout(self.analog_rf_noise[0])
-        noise_layout.addLayout(self.analog_dropouts[0])
-        noise_layout.addLayout(self.analog_contrast_crush[0])
+        noise_layout.addLayout(self.circuit_rf_noise[0])
+        noise_layout.addLayout(self.circuit_dropouts[0])
+        noise_layout.addLayout(self.circuit_contrast_crush[0])
         
         layout.addWidget(noise_group)
         
@@ -401,13 +446,13 @@ class MainWindow(QMainWindow):
         sync_group = QGroupBox("Sync Failure & Signal Breaks")
         sync_layout = QVBoxLayout(sync_group)
         
-        self.analog_frame_shatter = self.create_slider_with_label("Frame Shattering", 0)
-        self.analog_sync_dropout = self.create_slider_with_label("Sync Dropout", 0)
-        self.analog_signal_fragment = self.create_slider_with_label("TV Melt", 0)
+        self.circuit_frame_shatter = self.create_slider_with_label("Frame Shattering", 0)
+        self.circuit_sync_dropout = self.create_slider_with_label("Sync Dropout", 0)
+        self.circuit_signal_fragment = self.create_slider_with_label("TV Melt", 0)
         
-        sync_layout.addLayout(self.analog_frame_shatter[0])
-        sync_layout.addLayout(self.analog_sync_dropout[0])
-        sync_layout.addLayout(self.analog_signal_fragment[0])
+        sync_layout.addLayout(self.circuit_frame_shatter[0])
+        sync_layout.addLayout(self.circuit_sync_dropout[0])
+        sync_layout.addLayout(self.circuit_signal_fragment[0])
         
         layout.addWidget(sync_group)
         
@@ -415,17 +460,37 @@ class MainWindow(QMainWindow):
         wave_group = QGroupBox("Waveform Distortions")
         wave_layout = QVBoxLayout(wave_group)
         
-        self.analog_wave_bending = self.create_slider_with_label("Wavy VHS", 0)
-        self.analog_glitch_strobe = self.create_slider_with_label("Glitch Strobing", 0)
-        self.analog_signal_interference = self.create_slider_with_label("Corrupt Signal", 0)
+        self.circuit_wave_bending = self.create_slider_with_label("Wavy VHS", 0)
+        self.circuit_glitch_strobe = self.create_slider_with_label("Glitch Strobing", 0)
+        self.circuit_signal_interference = self.create_slider_with_label("Corrupt Signal", 0)
         
-        wave_layout.addLayout(self.analog_wave_bending[0])
-        wave_layout.addLayout(self.analog_glitch_strobe[0])
-        wave_layout.addLayout(self.analog_signal_interference[0])
+        wave_layout.addLayout(self.circuit_wave_bending[0])
+        wave_layout.addLayout(self.circuit_glitch_strobe[0])
+        wave_layout.addLayout(self.circuit_signal_interference[0])
         
         layout.addWidget(wave_group)
         
         return panel
+
+    def handle_circuit_slider_change(self, param_name):
+        """Handle Analog Circuit slider changes directly"""
+        if "Analog Circuit" in self.effect_processors:
+            try:
+                attr_name = f"circuit_{param_name}"
+                if hasattr(self, attr_name) and isinstance(getattr(self, attr_name), tuple):
+                    slider_tuple = getattr(self, attr_name)
+                    if len(slider_tuple) >= 2:
+                        # Get the slider value
+                        value = slider_tuple[1].value()
+                        print(f"Direct Analog Circuit update: {param_name} = {value}")
+                        
+                        # Update the parameter directly
+                        self.effect_processors["Analog Circuit"].params[param_name] = value
+                        
+                        # Also force a preview update
+                        self.update_preview()
+            except Exception as e:
+                print(f"Error in direct circuit update: {e}")
     
     def create_slider(self, name, min_val, max_val, default):
         slider_layout = QHBoxLayout()
@@ -450,223 +515,208 @@ class MainWindow(QMainWindow):
         return (slider_layout, slider, value_label)
     
     def trigger_debounced_update(self):
-        """Trigger the update timer to update the preview after a short delay"""
-        if hasattr(self, 'update_timer'):
-            self.update_timer.start()
+        """Trigger a debounced update when sliders change"""
+        sender = self.sender()
+        sender_name = "unknown"
+        
+        # Try to identify which slider triggered the update
+        for attr_name in dir(self):
+            if attr_name.startswith(('crt_', 'vhs_', 'circuit_')) and hasattr(self, attr_name):
+                attr_value = getattr(self, attr_name)
+                if isinstance(attr_value, tuple) and len(attr_value) >= 2 and attr_value[1] == sender:
+                    sender_name = attr_name
+                    break
+        
+        print(f"Slider changed: {sender_name}, triggering update...")
+        
+        # Restart the timer to debounce multiple rapid changes
+        if self.update_timer.isActive():
+            self.update_timer.stop()
+        self.update_timer.start()
     
     def apply_preview_update(self):
-        # This will be called once after the last slider change (within debounce period)
-        if self.video_path:
-            params = self.get_current_parameters()
-            self.effect_processor.update_parameters(params)
-            self.preview_widget.apply_effect(self.effect_processor)
-    
-    def create_slider_pair(self, label_text, min_val, max_val, default_val):
-        """
-        Create a label + slider pair with the given parameters
-        Returns (layout, slider) tuple
-        """
-        layout = QHBoxLayout()
-        
-        # Create label
-        label = QLabel(label_text)
-        label.setMinimumWidth(150)
-        layout.addWidget(label)
-        
-        # Create slider
-        slider = QSlider(Qt.Horizontal)
-        slider.setMinimum(min_val)
-        slider.setMaximum(max_val)
-        slider.setValue(default_val)
-        slider.setTickPosition(QSlider.TicksBelow)
-        slider.setTickInterval((max_val - min_val) // 10)
-        
-        # Create value display label
-        value_label = QLabel(str(default_val))
-        value_label.setFixedWidth(30)
-        
-        # Update value label when slider changes
-        slider.valueChanged.connect(lambda val: value_label.setText(str(val)))
-        
-        # Connect slider to preview update
-        slider.valueChanged.connect(self.update_preview)
-        
-        layout.addWidget(slider)
-        layout.addWidget(value_label)
-        
-        return (layout, slider)
-    
-    def apply_retro_style(self):
-        # Create a retro color palette
-        palette = QPalette()
-        
-        # Dark blue-gray background
-        palette.setColor(QPalette.Window, QColor(40, 45, 60))
-        palette.setColor(QPalette.WindowText, QColor(240, 240, 245))
-        
-        # Slightly lighter for widgets
-        palette.setColor(QPalette.Base, QColor(60, 65, 80))
-        palette.setColor(QPalette.AlternateBase, QColor(50, 55, 70))
-        
-        # Bright purple highlights
-        palette.setColor(QPalette.Highlight, QColor(170, 85, 255))
-        palette.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
-        
-        # Text colors
-        palette.setColor(QPalette.Text, QColor(240, 240, 245))
-        palette.setColor(QPalette.BrightText, QColor(255, 255, 255))
-        
-        # Button colors
-        palette.setColor(QPalette.Button, QColor(80, 85, 120))
-        palette.setColor(QPalette.ButtonText, QColor(240, 240, 255))
-        
-        self.setPalette(palette)
-        
-        # Set cool retro font
-        font = QFont("Fixedsys", 10)
-        self.setFont(font)
-    
-    def load_video_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Select Video File", "", 
-            "Video Files (*.mp4 *.avi *.mov *.mkv *.webm);;All Files (*)"
-        )
-        
-        if file_path:
-            self.video_path = file_path
-            self.statusBar().showMessage(f"Loaded: {os.path.basename(file_path)}")
+        """Apply effects and update preview based on current sliders"""
+        print("Applying slider updates to effect processors...")
+        try:
+            # Let's directly check for each processor and what parameters it supports
             
-            # Load the video into the preview widget
-            self.preview_widget.load_video(file_path)
+            # For Analog Circuit processor specifically:
+            if "Analog Circuit" in self.effect_processors:
+                print("Checking Analog Circuit processor parameters...")
+                circuit_processor = self.effect_processors["Analog Circuit"]
+                
+                # Print its current parameters
+                print(f"Analog Circuit processor supports: {list(circuit_processor.params.keys())}")
+                
+                # Gather parameters from sliders
+                circuit_params = {}
+                for attr_name in dir(self):
+                    if attr_name.startswith('circuit_') and isinstance(getattr(self, attr_name), tuple):
+                        slider_tuple = getattr(self, attr_name)
+                        if len(slider_tuple) >= 2 and hasattr(slider_tuple[1], 'value'):
+                            param_name = attr_name[8:]  # skip 'circuit_'
+                            value = slider_tuple[1].value()
+                            circuit_params[param_name] = value
+                            print(f"  Found circuit param: {param_name} = {value}")
+                
+                # Update the processor
+                if circuit_params:
+                    print(f"About to update Analog Circuit processor with: {circuit_params}")
+                    before_params = circuit_processor.params.copy()
+                    circuit_processor.update_parameters(circuit_params)
+                    
+                    # Check if parameters were actually updated
+                    print("Changes in Analog Circuit parameters:")
+                    for key, new_value in circuit_processor.params.items():
+                        old_value = before_params.get(key, "N/A")
+                        if old_value != new_value:
+                            print(f"  {key}: {old_value} -> {new_value}")
+                        elif key in circuit_params:
+                            print(f"  {key}: No change ({new_value}) despite update attempt")
             
-            # Enable preview and save buttons
-            self.save_btn.setEnabled(True)
+            # Normal parameter updates for other effects
+            # Update CRT TV parameters
+            crt_params = {}
+            for param_name in ["scanline_intensity", "scanline_thickness", "interlacing", 
+                              "rgb_mask", "bloom", "glow", "barrel", "zoom", 
+                              "h_jitter", "v_jitter", "chroma_ab", "color_bleed", 
+                              "brightness_flicker", "static", "contrast", "saturation", 
+                              "reflection"]:
+                attr_name = f"crt_{param_name}"
+                if hasattr(self, attr_name) and isinstance(getattr(self, attr_name), tuple):
+                    slider_tuple = getattr(self, attr_name)
+                    if len(slider_tuple) >= 2 and hasattr(slider_tuple[1], 'value'):
+                        crt_params[param_name] = slider_tuple[1].value()
+            
+            print(f"CRT parameters to apply: {crt_params}")
+            # Update the CRT processor if we have parameters
+            if crt_params and "CRT TV" in self.effect_processors:
+                self.effect_processors["CRT TV"].update_parameters(crt_params)
+            
+            # Update VHS parameters
+            vhs_params = {}
+            for param_name in ["tracking_error", "color_bleeding", "noise", "static_lines", 
+                              "jitter", "distortion", "contrast", "color_loss", 
+                              "ghosting", "scanlines", "head_switching", "luma_noise", 
+                              "chroma_noise", "tape_wear", "saturation", "signal_noise", 
+                              "dropout"]:
+                attr_name = f"vhs_{param_name}"
+                if hasattr(self, attr_name) and isinstance(getattr(self, attr_name), tuple):
+                    slider_tuple = getattr(self, attr_name)
+                    if len(slider_tuple) >= 2 and hasattr(slider_tuple[1], 'value'):
+                        vhs_params[param_name] = slider_tuple[1].value()
+            
+            # Add special case for interlacing
+            if hasattr(self, 'vhs_interlacing') and isinstance(self.vhs_interlacing, tuple):
+                vhs_params["interlacing_artifacts"] = self.vhs_interlacing[1].value()
+            
+            # Add special case for the vertical hold slider if it exists
+            if hasattr(self, 'vhs_vertical_hold') and isinstance(self.vhs_vertical_hold, tuple):
+                vhs_params["vertical_hold"] = self.vhs_vertical_hold[1].value()
+            
+            # Add special case for horizontal jitter slider if it exists
+            if hasattr(self, 'vhs_horizontal_jitter') and isinstance(self.vhs_horizontal_jitter, tuple):
+                vhs_params["horizontal_jitter"] = self.vhs_horizontal_jitter[1].value()
+            
+            # Update the VHS processor if we have parameters
+            if vhs_params and "VHS Glitch" in self.effect_processors:
+                print(f"VHS parameters to apply: {vhs_params}")
+                self.effect_processors["VHS Glitch"].update_parameters(vhs_params)
+            
+            # Now update the preview
+            print("Calling update_preview() after parameter updates...")
+            self.update_preview()
+            
+            # Inside apply_preview_update, add this debug output after updating the Analog Circuit
+            print("After all updates:")
+            for name, proc in self.effect_processors.items():
+                non_zero = {k: v for k, v in proc.params.items() if v > 0}
+                print(f"  {name}: {non_zero if non_zero else 'All zeros'}")
+            
+        except Exception as e:
+            print(f"Error applying preview update: {str(e)}")
+            import traceback
+            traceback.print_exc()
     
     def update_preview(self):
-        if self.video_path:
-            # Get all parameters from sliders
-            params = self.get_current_parameters()
+        """Update the preview with current effects"""
+        try:
+            if not hasattr(self, 'video_path') or not self.video_path:
+                return
             
-            # Update the effect processor with new parameters
-            self.effect_processor.update_parameters(params)
+            print("Forcing a direct preview update...")
+
+            # Create or update our persistent combined processor
+            if not hasattr(self, '_combined_processor'):
+                # First time setup - create our combined processor
+                class CombinedProcessor:
+                    def __init__(self, main_window):
+                        self.main_window = main_window
+                    
+                    def process_frame(self, frame, is_preview=True):
+                        if frame is None:
+                            return None
+                        
+                        # Apply each effect in sequence
+                        effect_order = ["CRT TV", "VHS Glitch", "Analog Circuit"]
+                        processed = frame.copy()
+                        
+                        # Only collect active effects for logging
+                        active_effects = []
+                        
+                        for effect_name in effect_order:
+                            processor = self.main_window.effect_processors[effect_name]
+                            non_zero_params = {k: v for k, v in processor.params.items() if v > 0}
+                            if non_zero_params:
+                                active_effects.append(effect_name)
+                                processed = processor.process_frame(processed, is_preview=True)
+                        
+                        # Uncomment for debugging specific frames
+                        # print(f"Applied effects: {', '.join(active_effects) if active_effects else 'None'}")
+                        return processed
+                
+                # Create the processor once
+                self._combined_processor = CombinedProcessor(self)
+                
+                # IMPORTANT: Set it as the PERMANENT effect processor for the preview widget
+                self.preview_widget.apply_effect(self._combined_processor)
             
-            # Apply effect and update preview
-            self.preview_widget.apply_effect(self.effect_processor)
+            # Force a frame update to show the current settings
+            if self.preview_widget.current_frame is not None:
+                current_frame = self.preview_widget.current_frame.copy()
+                
+                # Format parameters for display
+                active_params = {}
+                for effect_name, processor in self.effect_processors.items():
+                    non_zero = {k: v for k, v in processor.params.items() if v > 0}
+                    if non_zero:
+                        active_params[effect_name] = non_zero
+                
+                if active_params:
+                    print(f"Active effects and parameters: {active_params}")
+                else:
+                    print("No active effects")
+                    
+                # Process the current frame with our combined processor
+                processed_frame = self._combined_processor.process_frame(current_frame, is_preview=True)
+                
+                # Update the display with the processed frame
+                self.preview_widget.display_processed_frame(processed_frame)
+            
+        except Exception as e:
+            print(f"Error updating preview: {str(e)}")
+            import traceback
+            traceback.print_exc()
     
     def get_current_parameters(self):
-        """Get all parameters from the current effect's controls"""
+        """Get current effect parameters from all sliders"""
         params = {}
         
-        if self.current_effect == "CRT TV":
-            # Collect CRT parameters
-            if hasattr(self, 'crt_scanline_intensity'):
-                params["scanline_intensity"] = self.crt_scanline_intensity[1].value()
-            if hasattr(self, 'crt_scanline_thickness'):
-                params["scanline_thickness"] = self.crt_scanline_thickness[1].value()
-            if hasattr(self, 'crt_interlacing'):
-                params["interlacing"] = self.crt_interlacing[1].value()
-            if hasattr(self, 'crt_rgb_mask'):
-                params["rgb_mask"] = self.crt_rgb_mask[1].value()
-            if hasattr(self, 'crt_bloom'):
-                params["bloom"] = self.crt_bloom[1].value()
-            if hasattr(self, 'crt_glow'):
-                params["glow"] = self.crt_glow[1].value()
-            if hasattr(self, 'crt_barrel'):
-                params["barrel"] = self.crt_barrel[1].value()
-            if hasattr(self, 'crt_zoom'):
-                params["zoom"] = self.crt_zoom[1].value()
-            if hasattr(self, 'crt_h_jitter'):
-                params["h_jitter"] = self.crt_h_jitter[1].value()
-            if hasattr(self, 'crt_v_jitter'):
-                params["v_jitter"] = self.crt_v_jitter[1].value()
-            if hasattr(self, 'crt_chroma_ab'):
-                params["chroma_ab"] = self.crt_chroma_ab[1].value()
-            if hasattr(self, 'crt_color_bleed'):
-                params["color_bleed"] = self.crt_color_bleed[1].value()
-            if hasattr(self, 'crt_brightness_flicker'):
-                params["brightness_flicker"] = self.crt_brightness_flicker[1].value()
-            if hasattr(self, 'crt_static'):
-                params["static"] = self.crt_static[1].value()
-            if hasattr(self, 'crt_contrast'):
-                params["contrast"] = self.crt_contrast[1].value()
-            if hasattr(self, 'crt_saturation'):
-                params["saturation"] = self.crt_saturation[1].value()
-            if hasattr(self, 'crt_reflection'):
-                params["reflection"] = self.crt_reflection[1].value()
-        
-        elif self.current_effect == "VHS Glitch":
-            # Collect VHS parameters
-            if hasattr(self, 'vhs_tracking_error'):
-                params["tracking_error"] = self.vhs_tracking_error[1].value()
-            if hasattr(self, 'vhs_color_bleeding'):
-                params["color_bleeding"] = self.vhs_color_bleeding[1].value()
-            if hasattr(self, 'vhs_noise'):
-                params["noise"] = self.vhs_noise[1].value()
-            if hasattr(self, 'vhs_signal_noise'):
-                params["signal_noise"] = self.vhs_signal_noise[1].value()
-            if hasattr(self, 'vhs_interlacing'):
-                params["interlacing_artifacts"] = self.vhs_interlacing[1].value()
-            if hasattr(self, 'vhs_vertical_hold'):
-                params["vertical_hold"] = self.vhs_vertical_hold[1].value()
-            if hasattr(self, 'vhs_horizontal_jitter'):
-                params["horizontal_jitter"] = self.vhs_horizontal_jitter[1].value()
-            if hasattr(self, 'vhs_color_bleed'):
-                params["color_bleed"] = self.vhs_color_bleed[1].value()
-            if hasattr(self, 'vhs_color_shift'):
-                params["color_shift"] = self.vhs_color_shift[1].value()
-            if hasattr(self, 'vhs_color_banding'):
-                params["color_banding"] = self.vhs_color_banding[1].value()
-            if hasattr(self, 'vhs_brightness_flicker'):
-                params["brightness_flicker"] = self.vhs_brightness_flicker[1].value()
-            if hasattr(self, 'vhs_contrast'):
-                params["contrast"] = self.vhs_contrast[1].value()
-            if hasattr(self, 'vhs_saturation'):
-                params["saturation"] = self.vhs_saturation[1].value()
-        
-        elif self.current_effect == "Analog Circuit":
-            # Collect Analog Circuit parameters
-            if hasattr(self, 'analog_feedback_intensity'):
-                params["feedback_intensity"] = self.analog_feedback_intensity[1].value()
-            if hasattr(self, 'analog_feedback_delay'):
-                params["feedback_delay"] = self.analog_feedback_delay[1].value()
-            if hasattr(self, 'analog_h_sync_skew'):
-                params["h_sync_skew"] = self.analog_h_sync_skew[1].value()
-            if hasattr(self, 'analog_v_sync_roll'):
-                params["v_sync_roll"] = self.analog_v_sync_roll[1].value()
-            if hasattr(self, 'analog_wave_distortion'):
-                params["wave_distortion"] = self.analog_wave_distortion[1].value()
-            if hasattr(self, 'analog_rainbow_banding'):
-                params["rainbow_banding"] = self.analog_rainbow_banding[1].value()
-            if hasattr(self, 'analog_color_inversion'):
-                params["color_inversion"] = self.analog_color_inversion[1].value()
-            if hasattr(self, 'analog_oversaturate'):
-                params["oversaturate"] = self.analog_oversaturate[1].value()
-            if hasattr(self, 'analog_pixel_smear'):
-                params["pixel_smear"] = self.analog_pixel_smear[1].value()
-            if hasattr(self, 'analog_frame_repeat'):
-                params["frame_repeat"] = self.analog_frame_repeat[1].value()
-            if hasattr(self, 'analog_block_glitch'):
-                params["block_glitch"] = self.analog_block_glitch[1].value()
-            if hasattr(self, 'analog_rf_noise'):
-                params["rf_noise"] = self.analog_rf_noise[1].value()
-            if hasattr(self, 'analog_dropouts'):
-                params["dropouts"] = self.analog_dropouts[1].value()
-            if hasattr(self, 'analog_contrast_crush'):
-                params["contrast_crush"] = self.analog_contrast_crush[1].value()
-            if hasattr(self, 'analog_frame_shatter'):
-                params["frame_shatter"] = self.analog_frame_shatter[1].value()
-            if hasattr(self, 'analog_sync_dropout'):
-                params["sync_dropout"] = self.analog_sync_dropout[1].value()
-            if hasattr(self, 'analog_signal_fragment'):
-                params["signal_fragment"] = self.analog_signal_fragment[1].value()
-            if hasattr(self, 'analog_wave_bending'):
-                params["wave_bending"] = self.analog_wave_bending[1].value()
-            if hasattr(self, 'analog_glitch_strobe'):
-                params["glitch_strobe"] = self.analog_glitch_strobe[1].value()
-            if hasattr(self, 'analog_signal_interference'):
-                params["signal_interference"] = self.analog_signal_interference[1].value()
-            if hasattr(self, 'analog_squint_modulation'):
-                params["squint_modulation"] = self.analog_squint_modulation[1].value()
+        # Collect parameters from all effect processors
+        for effect_name, processor in self.effect_processors.items():
+            if processor:
+                # Add all parameters
+                params.update(processor.params)
         
         return params
     
@@ -712,67 +762,89 @@ class MainWindow(QMainWindow):
         self.update_preview()
     
     def save_video_file(self):
-        if not self.video_path:
+        """Save processed video with all current effects applied"""
+        # Make sure we have a video loaded
+        if not hasattr(self, 'video_path') or not self.video_path:
+            self.statusBar().showMessage("No video loaded")
             return
         
+        print("Starting video export...")
+        
+        # Get destination file with native dialog
         output_path, _ = QFileDialog.getSaveFileName(
-            self, "Save Video", "", 
-            "Video Files (*.mp4 *.avi *.mov);;All Files (*)"
+            self, "Save Video", "",
+            "MP4 Video (*.mp4);;AVI Video (*.avi);;MOV Video (*.mov);;All Files (*)",
+            options=QFileDialog.Options() | QFileDialog.DontUseCustomDirectoryIcons
         )
         
         if not output_path:
             return
         
-        # Show quality options BEFORE starting to save
-        quality_options = ["Draft (Fast)", "Standard", "High Quality (Slow)"]
-        quality, ok = QInputDialog.getItem(self, "Export Quality", 
-                                          "Select export quality:", 
-                                          quality_options, 1, False)
+        # Ask for export quality
+        quality_options = ["Draft (Faster)", "Standard", "High Quality (Slower)"]
+        quality, ok = QInputDialog.getItem(
+            self, "Export Quality", "Select export quality:", 
+            quality_options, 1, False
+        )
+        
         if not ok:
             return
         
-        # Map quality to rendering settings
-        skip_frames = 0  # Standard - process all frames
+        # Set frame skip based on quality
+        skip_frames = 0
         if quality == quality_options[0]:  # Draft
-            skip_frames = 2  # Process every 3rd frame for speed
-        elif quality == quality_options[2]:  # High Quality
-            skip_frames = 0  # Process all frames, maybe with higher quality settings
+            skip_frames = 3
+        elif quality == quality_options[1]:  # Standard
+            skip_frames = 1
+        # else 0 for high quality
         
-        # Get current parameters
-        params = self.get_current_parameters()
-        
-        # Update status
-        self.statusBar().showMessage("Rendering video with effects... Please wait.")
-        
-        # Create a progress dialog
-        progress = QProgressDialog("Rendering video with effects...", "Cancel", 0, 100, self)
+        # Show progress dialog
+        progress = QProgressDialog("Processing video...", "Cancel", 0, 100, self)
+        progress.setWindowTitle("Exporting Video")
         progress.setWindowModality(Qt.WindowModal)
-        progress.setWindowTitle("BitRot - Exporting")
-        progress.setMinimumDuration(0)  # Show immediately
+        progress.show()
         
-        # Get video frame count for progress
-        cap = cv2.VideoCapture(self.video_path)
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        cap.release()
+        # Progress callback
+        def update_progress(current, total):
+            if progress.wasCanceled():
+                return False
+            progress.setValue(int(current / total * 100))
+            return True
         
-        # Update progress max value
-        progress.setMaximum(total_frames)
-        
-        # Define progress callback
-        def update_progress(frame_num, total):
-            progress.setValue(frame_num)
-            return not progress.wasCanceled()
-        
-        # Process and save the video with current effects
+        # Process and save the video with all current effects
         try:
-            save_video(self.video_path, output_path, self.effect_processor, 
+            print("Using combined processor for export...")
+            # Create a combined processor for export
+            class CombinedProcessor:
+                def __init__(self, main_window):
+                    self.main_window = main_window
+                
+                def process_frame(self, frame, is_preview=False):
+                    # Apply each effect in sequence
+                    effect_order = ["CRT TV", "VHS Glitch", "Analog Circuit"]
+                    processed = frame.copy()
+                    
+                    for effect_name in effect_order:
+                        processor = self.main_window.effect_processors[effect_name]
+                        print(f"Export: {effect_name} params = {processor.params}")
+                        # Only apply effects that have non-zero parameters
+                        if any(val > 0 for val in processor.params.values()):
+                            print(f"Export: Applying {effect_name}")
+                            processed = processor.process_frame(processed, is_preview=False)
+                    
+                    return processed
+            
+            combined_processor = CombinedProcessor(self)
+            
+            # Call the save_video function with our combined processor
+            print(f"Starting export to {output_path} with skip_frames={skip_frames}")
+            save_video(self.video_path, output_path, combined_processor, 
                       update_progress, skip_frames=skip_frames)
-                      
-            # Ensure progress reaches 100%
-            progress.setValue(total_frames)
-        finally:
-            # Always close the progress dialog when finished or canceled
-            progress.close()
+        except Exception as e:
+            print(f"Error saving video: {str(e)}")
+            progress.cancel()
+            self.statusBar().showMessage(f"Error: {str(e)}")
+            return
         
         if not progress.wasCanceled():
             self.statusBar().showMessage(f"Saved to: {os.path.basename(output_path)}")
@@ -797,27 +869,30 @@ class MainWindow(QMainWindow):
             print(f"Error changing preview quality: {str(e)}")
 
     def change_effect(self, index):
+        """Change the active effect panel"""
         effect_name = self.effect_combo.currentText()
         self.current_effect = effect_name
         
         try:
-            # Create appropriate effect processor
-            self.effect_processor = EffectFactory.create_effect(effect_name)
+            print(f"Changing to effect panel: {effect_name}")
             
-            # Set effect mode explicitly if the attribute exists
-            if hasattr(self.effect_processor, 'effect_mode'):
-                self.effect_processor.effect_mode = effect_name
-            
-            # Hide all control panels
+            # Hide/show appropriate control panels based on selection
             for panel_name, panel in self.effect_control_panels.items():
                 if panel.isWidgetType():  # Check if panel is a valid widget
                     panel.setVisible(panel_name == effect_name)
             
-            # Only update preview if we have video
+            # Apply current parameters from the visible panel's sliders
+            self.apply_preview_update()
+            
+            # Force the preview to update with all effects
             if hasattr(self, 'video_path') and self.video_path:
+                print(f"Refreshing preview with combined effects after switching to {effect_name}")
                 self.update_preview()
+            
         except Exception as e:
-            print(f"Error changing effect: {str(e)}")
+            print(f"Error changing effect panel: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def create_slider_with_label(self, name, default_value):
         """Create a slider with a label and value display"""
@@ -850,10 +925,259 @@ class MainWindow(QMainWindow):
     
     def toggle_high_quality_effects(self, state):
         """Toggle high quality effects preview"""
-        if hasattr(self, 'effect_processor'):
+        if hasattr(self, 'effect_processors'):
             # Set a flag in the effect processor
-            self.effect_processor.high_quality_preview = bool(state)
+            for processor in self.effect_processors.values():
+                processor.high_quality_preview = bool(state)
             
             # Update preview if we have a video
             if hasattr(self, 'video_path') and self.video_path:
                 self.update_preview() 
+
+    def load_video_file(self):
+        video_path, _ = QFileDialog.getOpenFileName(
+            self, "Open Video", "", 
+            "Video Files (*.mp4 *.avi *.mov *.wmv *.mkv);;All Files (*)",
+            options=QFileDialog.Options() | QFileDialog.DontUseCustomDirectoryIcons
+        )
+        
+        if video_path:
+            self.video_path = video_path
+            self.preview_widget.load_video(video_path)
+            self.statusBar().showMessage(f"Loaded: {os.path.basename(video_path)}")
+            
+            # Update the preview with current effects
+            self.update_preview() 
+
+    def apply_retro_style(self):
+        """Apply retro visual styling to the app"""
+        # Set application style
+        self.setStyle(QStyleFactory.create("Fusion"))
+        
+        # Set a darker color scheme with CRT green and blue accents
+        dark_palette = QPalette()
+        
+        # Base colors
+        dark_color = QColor(30, 30, 35)
+        darker_color = QColor(25, 25, 28)
+        light_color = QColor(200, 210, 210)
+        accent_color = QColor(0, 180, 170)  # Teal/blue accent for retro feel
+        highlight_color = QColor(0, 160, 150)
+        
+        # Set colors for various UI elements
+        dark_palette.setColor(QPalette.Window, dark_color)
+        dark_palette.setColor(QPalette.WindowText, light_color)
+        dark_palette.setColor(QPalette.Base, darker_color)
+        dark_palette.setColor(QPalette.AlternateBase, dark_color)
+        dark_palette.setColor(QPalette.ToolTipBase, accent_color)
+        dark_palette.setColor(QPalette.ToolTipText, darker_color)
+        dark_palette.setColor(QPalette.Text, light_color)
+        dark_palette.setColor(QPalette.Button, dark_color)
+        dark_palette.setColor(QPalette.ButtonText, light_color)
+        dark_palette.setColor(QPalette.BrightText, QColor(255, 255, 255))
+        dark_palette.setColor(QPalette.Link, accent_color)
+        dark_palette.setColor(QPalette.Highlight, highlight_color)
+        dark_palette.setColor(QPalette.HighlightedText, QColor(0, 0, 0))
+        
+        # Apply the palette
+        self.setPalette(dark_palette)
+        
+        # Additional styling
+        self.setStyleSheet("""
+            QToolTip { 
+                color: #000000; 
+                background-color: #00B4B4; 
+                border: 1px solid #00FFFF; 
+                padding: 2px;
+            }
+            
+            QGroupBox {
+                font-weight: bold;
+                border: 1px solid #3A3A3A;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 15px;
+            }
+            
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top center;
+                padding: 0 5px;
+                color: #00E0E0;
+            }
+            
+            QSlider::groove:horizontal {
+                height: 8px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                               stop:0 #330033, 
+                               stop:0.3 #101055, 
+                               stop:0.6 #0033aa, 
+                               stop:1 #006666);
+                margin: 2px 0;
+                border-radius: 4px;
+                border: 1px solid #444460;
+            }
+            
+            QSlider::handle:horizontal {
+                background: qradialgradient(cx:0.5, cy:0.5, radius:0.8, fx:0.5, fy:0.5, 
+                              stop:0 #00ffff, 
+                              stop:0.7 #00d0d0, 
+                              stop:1 #00a0a0);
+                border: 1px solid #5c5c5c;
+                width: 18px;
+                height: 18px;
+                margin: -6px 0;
+                border-radius: 9px;
+            }
+            
+            QSlider::add-page:horizontal {
+                background: #101020;
+                border-radius: 4px;
+            }
+            
+            QSlider::sub-page:horizontal {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                             stop:0 #00aaff, 
+                             stop:0.5 #00dddd, 
+                             stop:1 #00ffaa);
+                border-radius: 4px;
+                border: 1px solid #009090;
+            }
+            
+            QSlider::handle:horizontal:hover {
+                background: qradialgradient(cx:0.5, cy:0.5, radius:0.8, fx:0.5, fy:0.5, 
+                              stop:0 #ff00ff, 
+                              stop:0.7 #dd00dd, 
+                              stop:1 #aa00aa);
+                border: 2px solid #ff50ff;
+            }
+            
+            QComboBox, QPushButton {
+                background-color: #2A2A35;
+                border: 1px solid #4A4A55;
+                padding: 5px;
+                border-radius: 3px;
+                color: #DADADA;
+            }
+            
+            QPushButton:hover {
+                background-color: #3A3A45;
+                border: 1px solid #00B4B4;
+            }
+            
+            QPushButton:pressed {
+                background-color: #252530;
+            }
+            
+            QLabel {
+                color: #CECECE;
+            }
+            
+            QScrollBar:vertical {
+                border: 1px solid #333340;
+                background: #202025;
+                width: 12px;
+                margin: 16px 0 16px 0;
+            }
+            QScrollBar::handle:vertical {
+                background: #4A4A55;
+                min-height: 20px;
+                border-radius: 3px;
+            }
+            QScrollBar::add-line:vertical {
+                border: 1px solid #333340;
+                background: #3A3A45;
+                height: 15px;
+                subcontrol-position: bottom;
+                subcontrol-origin: margin;
+            }
+            QScrollBar::sub-line:vertical {
+                border: 1px solid #333340;
+                background: #3A3A45;
+                height: 15px;
+                subcontrol-position: top;
+                subcontrol-origin: margin;
+            }
+            
+            QMainWindow {
+                background-color: #1A1A20;
+            }
+            
+            QWidget {
+                background-color: #1A1A20;
+            }
+        """) 
+
+    def check_slider_connections(self):
+        """Debug function to check all slider connections"""
+        try:
+            print("Checking slider connections...")
+            
+            # Check all CRT sliders
+            crt_sliders = [
+                "scanline_intensity", "scanline_thickness", "interlacing", "rgb_mask",
+                "bloom", "glow", "barrel", "zoom", "h_jitter", "v_jitter", 
+                "chroma_ab", "color_bleed", "brightness_flicker", "static", 
+                "contrast", "saturation", "reflection"
+            ]
+            
+            for slider_name in crt_sliders:
+                attr_name = f"crt_{slider_name}"
+                if hasattr(self, attr_name) and isinstance(getattr(self, attr_name), tuple):
+                    slider_tuple = getattr(self, attr_name)
+                    if len(slider_tuple) >= 2:
+                        # Make sure the slider is connected
+                        slider_tuple[1].valueChanged.connect(self.trigger_debounced_update)
+                        print(f"✓ Connected {attr_name}")
+                    else:
+                        print(f"✗ Invalid slider tuple for {attr_name}")
+                else:
+                    print(f"✗ Missing slider {attr_name}")
+            
+            # Check all VHS sliders
+            vhs_sliders = [
+                "tracking_error", "color_bleeding", "noise", "static_lines",
+                "jitter", "distortion", "contrast", "color_loss", "ghosting", 
+                "scanlines", "head_switching", "luma_noise", "chroma_noise", 
+                "tape_wear", "saturation", "signal_noise", "dropout", "interlacing"
+            ]
+            
+            for slider_name in vhs_sliders:
+                attr_name = f"vhs_{slider_name}"
+                if hasattr(self, attr_name) and isinstance(getattr(self, attr_name), tuple):
+                    slider_tuple = getattr(self, attr_name)
+                    if len(slider_tuple) >= 2:
+                        # Make sure the slider is connected
+                        slider_tuple[1].valueChanged.connect(self.trigger_debounced_update)
+                        print(f"✓ Connected {attr_name}")
+                    else:
+                        print(f"✗ Invalid slider tuple for {attr_name}")
+                else:
+                    print(f"✗ Missing slider {attr_name}")
+            
+            # Check all Analog Circuit sliders
+            circuit_sliders = [
+                "feedback_intensity", "feedback_delay", "h_sync_skew", "v_sync_roll",
+                "wave_distortion", "rainbow_banding", "color_inversion", "oversaturate",
+                "squint_modulation", "pixel_smear", "frame_repeat", "block_glitch",
+                "rf_noise", "dropouts", "contrast_crush", "frame_shatter",
+                "sync_dropout", "signal_fragment", "wave_bending", "glitch_strobe",
+                "signal_interference"
+            ]
+            
+            for slider_name in circuit_sliders:
+                attr_name = f"circuit_{slider_name}"
+                if hasattr(self, attr_name) and isinstance(getattr(self, attr_name), tuple):
+                    slider_tuple = getattr(self, attr_name)
+                    if len(slider_tuple) >= 2:
+                        # Make sure the slider is connected
+                        slider_tuple[1].valueChanged.connect(self.trigger_debounced_update)
+                        print(f"✓ Connected {attr_name}")
+                    else:
+                        print(f"✗ Invalid slider tuple for {attr_name}")
+                else:
+                    print(f"✗ Missing slider {attr_name}")
+            
+            print("Slider connection check complete")
+        except Exception as e:
+            print(f"Error checking connections: {e}") 

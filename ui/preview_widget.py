@@ -110,8 +110,13 @@ class VideoPreviewWidget(QWidget):
         frame = cv2.resize(frame, (self.preview_width, self.preview_height))
         self.current_frame = frame
         
-        # Display the frame with effects
+        # Display the frame (let main window handle effects)
         self.display_frame(frame)
+        
+        # Notify any listeners that we have a new frame
+        # This is an alternative approach if your UI has a way to listen for frame updates
+        if hasattr(self, 'parent') and hasattr(self.parent, 'update_preview'):
+            self.parent.update_preview()
     
     def display_frame(self, frame):
         # Apply effect if one is set
@@ -201,3 +206,46 @@ class VideoPreviewWidget(QWidget):
             # Restart the timer if it was running
             if self.playback_timer.isActive():
                 self.playback_timer.start(33)  # ~30fps 
+
+    def get_current_frame(self):
+        """Get the current raw frame without effects"""
+        if self.video_capture is None or self.current_frame is None:
+            return None
+        
+        return self.current_frame.copy()
+
+    def display_processed_frame(self, frame):
+        """Display an already-processed frame"""
+        if frame is None:
+            return
+        
+        # Convert the OpenCV BGR frame to RGB for Qt
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
+        # Create QImage from frame
+        h, w, ch = rgb_frame.shape
+        bytes_per_line = ch * w
+        qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
+        
+        # Scale the image to fit the label while maintaining aspect ratio
+        pixmap = QPixmap.fromImage(qt_image)
+        
+        # Resize to fit the label
+        label_size = self.preview_label.size()
+        scaled_pixmap = pixmap.scaled(label_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        
+        # Update the label with the new image
+        self.preview_label.setPixmap(scaled_pixmap)
+        self.preview_label.setAlignment(Qt.AlignCenter)
+
+    def update_current_frame_only(self):
+        """Update only the current frame without starting a loop"""
+        if self.video_capture is None or self.current_frame is None:
+            return
+        
+        # Process the current frame with the current effect
+        if self.current_effect is not None:
+            processed_frame = self.current_effect.process_frame(self.current_frame.copy(), is_preview=True)
+            
+            # Display the processed frame
+            self.display_processed_frame(processed_frame) 
