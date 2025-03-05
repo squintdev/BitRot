@@ -19,9 +19,7 @@
 
 ### Option 1: Windows Executable (Easiest)
 
-1. Download the latest release from the [Releases page](https://github.com/yourusername/bitrot/releases)
-2. Extract the ZIP file
-3. Run `BitRot.exe`
+This option is not currently available. The next release will include a Windows executable.
 
 ### Option 2: From Source
 
