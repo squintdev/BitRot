@@ -121,32 +121,29 @@ class MainWindow(QMainWindow):
         top_bar.addWidget(quality_label)
         top_bar.addWidget(self.quality_combo)
         
-        # Add this in the init_ui method after the quality combo box
-        self.hq_preview_check = QCheckBox("Full Quality Effects")
-        self.hq_preview_check.setFont(QFont("Fixedsys", 11))
-        self.hq_preview_check.setChecked(False)
-        self.hq_preview_check.stateChanged.connect(self.toggle_high_quality_effects)
-        # Make the checkbox more visible with custom styling
-        self.hq_preview_check.setStyleSheet("""
-            QCheckBox {
-                color: #00ffff; /* Bright cyan text */
-                background-color: #33334C; /* Slightly lighter background */
-                padding: 5px;
-                border-radius: 5px;
-                border: 1px solid #444460;
-            }
-            QCheckBox::indicator {
-                width: 18px;
-                height: 18px;
-                background-color: #252530;
-                border: 2px solid #00B0B0;
-                border-radius: 4px;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #00C0C0;
-            }
-        """)
-        top_bar.addWidget(self.hq_preview_check)
+        # Add this after the quality dropdown in the top_bar layout
+        order_label = QLabel("Effect Order:")
+        order_label.setFont(QFont("Fixedsys", 11))
+        top_bar.addWidget(order_label)
+        
+        # Create the order comboboxes
+        self.effect_order = ["CRT TV", "VHS Glitch", "Analog Circuit"]  # Default order
+        
+        # Create three comboboxes for ordering the effects
+        self.order_combos = []
+        for i in range(3):
+            combo = QComboBox()
+            combo.setMinimumHeight(60)
+            combo.setFont(QFont("Fixedsys", 11))
+            combo.addItems(["CRT TV", "VHS Glitch", "Analog Circuit"])
+            combo.setCurrentIndex(i)  # Set default order
+            combo.currentIndexChanged.connect(lambda idx, pos=i: self.update_effect_order(pos, idx))
+            self.order_combos.append(combo)
+            top_bar.addWidget(combo)
+        
+        # Set a tooltip to explain usage
+        for combo in self.order_combos:
+            combo.setToolTip("Select which effect is applied at this position in the processing chain")
         
         main_layout.addLayout(top_bar)
         
@@ -577,7 +574,7 @@ class MainWindow(QMainWindow):
             # Normal parameter updates for other effects
             # Update CRT TV parameters
             crt_params = {}
-            for param_name in ["scanline_intensity", "scanline_thickness", "interlacing", 
+            for param_name in ["scanline_intensity", "interlacing", 
                               "rgb_mask", "bloom", "glow", "barrel", "zoom", 
                               "h_jitter", "v_jitter", "chroma_ab", "color_bleed", 
                               "brightness_flicker", "static", "contrast", "saturation", 
@@ -587,6 +584,15 @@ class MainWindow(QMainWindow):
                     slider_tuple = getattr(self, attr_name)
                     if len(slider_tuple) >= 2 and hasattr(slider_tuple[1], 'value'):
                         crt_params[param_name] = slider_tuple[1].value()
+            
+            # Handle scanline_thickness specially with reduced sensitivity
+            if hasattr(self, 'crt_scanline_thickness') and isinstance(self.crt_scanline_thickness, tuple):
+                raw_value = self.crt_scanline_thickness[1].value()
+                # Scale down the value to 20% of the original to make it more gradual
+                # This makes slider value 100 equivalent to the old value 20
+                # Convert to int to avoid 'float object cannot be interpreted as an integer' error
+                adjusted_value = int(max(1, raw_value * 0.2))  # Ensure minimum value of 1
+                crt_params['scanline_thickness'] = adjusted_value
             
             print(f"CRT parameters to apply: {crt_params}")
             # Update the CRT processor if we have parameters
@@ -657,14 +663,14 @@ class MainWindow(QMainWindow):
                         if frame is None:
                             return None
                         
-                        # Apply each effect in sequence
-                        effect_order = ["CRT TV", "VHS Glitch", "Analog Circuit"]
+                        # Apply each effect in the custom order
                         processed = frame.copy()
                         
                         # Only collect active effects for logging
                         active_effects = []
                         
-                        for effect_name in effect_order:
+                        # Use the current effect order from main window
+                        for effect_name in self.main_window.effect_order:
                             processor = self.main_window.effect_processors[effect_name]
                             non_zero_params = {k: v for k, v in processor.params.items() if v > 0}
                             if non_zero_params:
@@ -672,7 +678,7 @@ class MainWindow(QMainWindow):
                                 processed = processor.process_frame(processed, is_preview=True)
                         
                         # Uncomment for debugging specific frames
-                        # print(f"Applied effects: {', '.join(active_effects) if active_effects else 'None'}")
+                        # print(f"Applied effects in order: {' → '.join(active_effects) if active_effects else 'None'}")
                         return processed
                 
                 # Create the processor once
@@ -820,16 +826,15 @@ class MainWindow(QMainWindow):
                     self.main_window = main_window
                 
                 def process_frame(self, frame, is_preview=False):
-                    # Apply each effect in sequence
-                    effect_order = ["CRT TV", "VHS Glitch", "Analog Circuit"]
-                    processed = frame.copy()
+                    """Apply all effects to a frame"""
+                    if frame is None:
+                        return None
                     
-                    for effect_name in effect_order:
+                    # Apply each effect in the custom order
+                    processed = frame.copy()
+                    for effect_name in self.main_window.effect_order:
                         processor = self.main_window.effect_processors[effect_name]
-                        print(f"Export: {effect_name} params = {processor.params}")
-                        # Only apply effects that have non-zero parameters
                         if any(val > 0 for val in processor.params.values()):
-                            print(f"Export: Applying {effect_name}")
                             processed = processor.process_frame(processed, is_preview=False)
                     
                     return processed
@@ -923,16 +928,39 @@ class MainWindow(QMainWindow):
         
         return (layout, slider, value_label)
     
-    def toggle_high_quality_effects(self, state):
-        """Toggle high quality effects preview"""
-        if hasattr(self, 'effect_processors'):
-            # Set a flag in the effect processor
-            for processor in self.effect_processors.values():
-                processor.high_quality_preview = bool(state)
+    def update_effect_order(self, position, index):
+        """Update the effect processing order when user changes a dropdown"""
+        new_effect = self.order_combos[position].currentText()
+        
+        # Handle selecting the same effect in multiple dropdowns
+        current_effects = [combo.currentText() for combo in self.order_combos]
+        
+        # If we have duplicates, adjust the other dropdowns
+        if current_effects.count(new_effect) > 1:
+            # Find which effect was replaced and update another dropdown
+            old_effect = self.effect_order[position]
             
-            # Update preview if we have a video
-            if hasattr(self, 'video_path') and self.video_path:
-                self.update_preview() 
+            # Find which position has a duplicate and needs to be changed
+            duplicate_pos = -1
+            for i, effect in enumerate(current_effects):
+                if i != position and effect == new_effect:
+                    duplicate_pos = i
+                    break
+            
+            if duplicate_pos >= 0:
+                # Update the other dropdown to maintain uniqueness
+                self.order_combos[duplicate_pos].blockSignals(True)
+                self.order_combos[duplicate_pos].setCurrentText(old_effect)
+                self.order_combos[duplicate_pos].blockSignals(False)
+                current_effects[duplicate_pos] = old_effect
+        
+        # Update our stored order
+        self.effect_order = current_effects
+        
+        print(f"New effect order: {' → '.join(self.effect_order)}")
+        
+        # Update the preview with the new order
+        self.update_preview() 
 
     def load_video_file(self):
         video_path, _ = QFileDialog.getOpenFileName(
@@ -1181,3 +1209,9 @@ class MainWindow(QMainWindow):
             print("Slider connection check complete")
         except Exception as e:
             print(f"Error checking connections: {e}") 
+
+    def toggle_high_quality_effects(self, state):
+        """Toggle high quality effects preview (DEPRECATED - now handled by quality dropdown)"""
+        # This method was used by the now-removed checkbox
+        # Leaving it as a no-op to prevent errors if called elsewhere
+        pass 

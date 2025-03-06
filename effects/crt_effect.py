@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import random
 import math
+import time
 from effects.base_effect import BaseEffect
 
 class CRTEffect(BaseEffect):
@@ -82,6 +83,11 @@ class CRTEffect(BaseEffect):
             if is_preview:
                 # Apply a more balanced set of effects for preview
                 
+                # IMPORTANT: Add jitter to preview mode so it's visible
+                if self.params["h_jitter"] > 5 or self.params["v_jitter"] > 5:
+                    print(f"Applying jitter: h={self.params['h_jitter']}, v={self.params['v_jitter']}")
+                    frame = self.apply_jitter(frame)
+                
                 # 1. Basic adjustments first (always fast)
                 if self.params["contrast"] > 5 or self.params["saturation"] > 5:
                     frame = self.apply_contrast_saturation(frame)
@@ -129,6 +135,11 @@ class CRTEffect(BaseEffect):
                 # Apply only the effects that are significantly visible
                 # to improve performance
 
+                # Move jitter earlier in the pipeline to make it more noticeable
+                if self.params["h_jitter"] > 0 or self.params["v_jitter"] > 0:
+                    print(f"Applying jitter: h={self.params['h_jitter']}, v={self.params['v_jitter']}")
+                    frame = self.apply_jitter(frame)
+
                 # Apply contrast and saturation adjustments
                 if self.params["contrast"] > 5 or self.params["saturation"] > 5:
                     frame = self.apply_contrast_saturation(frame)
@@ -152,35 +163,31 @@ class CRTEffect(BaseEffect):
                 if self.params["bloom"] > 10 or self.params["glow"] > 10:
                     frame = self.apply_enhanced_bloom(frame, original_frame)
                 
-                # 4. Apply horizontal and vertical jitter
-                if self.params["h_jitter"] > 0 or self.params["v_jitter"] > 0:
-                    frame = self.apply_jitter(frame)
-                
-                # 5. Apply brightness flicker
+                # 4. Apply brightness flicker
                 if self.params["brightness_flicker"] > 0:
                     frame = self.apply_brightness_flicker(frame)
                 
-                # 6. Apply RGB mask for phosphor dots
+                # 5. Apply RGB mask for phosphor dots
                 if self.params["rgb_mask"] > 0:
                     frame = self.apply_rgb_mask(frame)
                 
-                # 7. Apply VHS artifacts if enabled
+                # 6. Apply VHS artifacts if enabled
                 if self.params.get("vhs_artifacts", 0) > 0:
                     frame = self.apply_vhs_artifacts(frame)
                 
-                # 8. Apply static and noise
+                # 7. Apply static and noise
                 if self.params["static"] > 0:
                     frame = self.apply_static(frame)
                 
-                # 9. Apply interlacing effect
+                # 8. Apply interlacing effect
                 if self.params["interlacing"] > 0:
                     frame = self.apply_interlacing(frame)
                 
-                # 10. Apply scanlines (after other effects for better visibility)
+                # 9. Apply scanlines (after other effects for better visibility)
                 if self.params["scanline_intensity"] > 0:
                     frame = self.apply_scanlines(frame)
                 
-                # 11. Apply screen reflection
+                # 10. Apply screen reflection
                 if self.params["reflection"] > 0:
                     frame = self.apply_screen_reflection(frame)
                 
@@ -191,20 +198,69 @@ class CRTEffect(BaseEffect):
         thickness = max(1, self.params["scanline_thickness"] // 3)
         intensity = self.params["scanline_intensity"] / 100.0
         
+        # Get jitter parameters
+        h_jitter = self.params["h_jitter"] / 100.0 
+        v_jitter = self.params["v_jitter"] / 100.0
+        
         # Create scanline pattern based on thickness
-        scanline_pattern = np.ones(h)
-        for i in range(0, h, thickness * 2):
-            end_idx = min(i + thickness, h)
-            scanline_pattern[i:end_idx] = 1.0 - intensity
+        scanline_pattern = np.ones((h, w), dtype=np.float32)
+        
+        # Apply jitter to scanlines
+        if h_jitter > 0 or v_jitter > 0:
+            # Use frame count to create time-varying jitter
+            frame_seed = (self.frame_count % 100) + 1
+            np.random.seed(frame_seed)
             
+            # Calculate jitter amounts
+            h_offset = int(h_jitter * 10)  # Max horizontal offset in pixels
+            v_offset = int(v_jitter * 3)   # Max vertical offset in pixels
+            
+            # Create jittered scanlines
+            for i in range(0, h, thickness * 2):
+                # Apply vertical jitter to scanline position
+                v_jitter_amount = np.random.randint(-v_offset, v_offset+1) if v_offset > 0 else 0
+                
+                # Calculate scanline boundaries with vertical jitter
+                start_y = max(0, i + v_jitter_amount)
+                end_y = min(h, start_y + thickness)
+                
+                if start_y < end_y:
+                    # Apply horizontal jitter as line shift
+                    h_jitter_amount = np.random.randint(-h_offset, h_offset+1) if h_offset > 0 else 0
+                    
+                    if h_jitter_amount == 0:
+                        # No horizontal jitter
+                        scanline_pattern[start_y:end_y, :] = 1.0 - intensity
+                    else:
+                        # Shift the scanline horizontally
+                        if h_jitter_amount > 0:
+                            scanline_pattern[start_y:end_y, h_jitter_amount:] = 1.0 - intensity
+                        else:
+                            scanline_pattern[start_y:end_y, :w+h_jitter_amount] = 1.0 - intensity
+        else:
+            # No jitter - apply regular scanlines
+            for i in range(0, h, thickness * 2):
+                end_idx = min(i + thickness, h)
+                scanline_pattern[i:end_idx, :] = 1.0 - intensity
+        
         # Apply the pattern to the image
-        scanline_pattern = scanline_pattern.reshape(h, 1)
-        frame = frame * scanline_pattern.reshape(h, 1, 1)
+        frame = frame * scanline_pattern.reshape(h, w, 1)
         
         return frame.astype(np.uint8)
     
     def apply_rgb_mask(self, frame):
         h, w = frame.shape[:2]
+        
+        # Get jitter parameters 
+        h_jitter = self.params["h_jitter"] / 100.0
+        v_jitter = self.params["v_jitter"] / 100.0
+        
+        # Apply the pattern based on intensity
+        mask_strength = self.params["rgb_mask"] / 100.0 * 0.3  # Scale for subtle effect
+        
+        # If no RGB mask intensity, return frame unchanged
+        if mask_strength <= 0:
+            return frame
         
         # Create RGB mask pattern if not already created or if size changed
         if self.rgb_mask_pattern is None or self.rgb_mask_pattern.shape[:2] != (h, w):
@@ -224,11 +280,35 @@ class CRTEffect(BaseEffect):
             
             self.rgb_mask_pattern = pattern
         
-        # Apply the pattern based on intensity
-        mask_strength = self.params["rgb_mask"] / 100.0 * 0.3  # Scale for subtle effect
-        
-        # Blend the frame with the RGB mask
-        blended = frame * (1.0 - mask_strength) + (frame * self.rgb_mask_pattern) * mask_strength
+        # Create jittered version of RGB mask
+        if h_jitter > 0 or v_jitter > 0:
+            # Use frame count to create time-varying jitter
+            frame_seed = (self.frame_count % 100) + 123  # Different seed than scanlines
+            np.random.seed(frame_seed)
+            
+            # Calculate jitter amounts
+            h_shift = int(h_jitter * 8)  # Reduced horizontal shift
+            v_shift = int(v_jitter * 2)  # More subtle vertical shift
+            
+            # Create jittered mask by shifting the pattern
+            if h_shift > 0 or v_shift > 0:
+                # Apply random jitter
+                jitter_x = np.random.randint(-h_shift, h_shift+1)
+                jitter_y = np.random.randint(-v_shift, v_shift+1)
+                
+                M = np.float32([[1, 0, jitter_x], [0, 1, jitter_y]])
+                jittered_pattern = cv2.warpAffine(
+                    self.rgb_mask_pattern, M, (w, h), 
+                    borderMode=cv2.BORDER_REPLICATE
+                )
+            else:
+                jittered_pattern = self.rgb_mask_pattern
+            
+            # Blend the frame with the jittered RGB mask
+            blended = frame * (1.0 - mask_strength) + (frame * jittered_pattern) * mask_strength
+        else:
+            # Use unmodified RGB mask
+            blended = frame * (1.0 - mask_strength) + (frame * self.rgb_mask_pattern) * mask_strength
         
         return np.clip(blended, 0, 255).astype(np.uint8)
     
@@ -355,37 +435,35 @@ class CRTEffect(BaseEffect):
         return result
     
     def apply_jitter(self, frame):
-        h, w = frame.shape[:2]
+        """Apply horizontal and vertical jitter to the frame"""
+        # Get jitter parameters with reasonable defaults
+        h_jitter = min(self.params.get('h_jitter', 0) / 5.0, 20.0)  # Scale for more visible effect
+        v_jitter = min(self.params.get('v_jitter', 0) / 7.0, 12.0)  # Vertical jitter should be more subtle
         
-        # Calculate jitter amounts based on parameters
-        h_jitter_max = int(self.params["h_jitter"] / 100.0 * 15)  # Increased max to 15 pixels
-        v_jitter_max = int(self.params["v_jitter"] / 100.0 * 10)  # Increased max to 10 pixels
-        
-        # Use temporal coherence for smoother jitter
-        # Target jitter values
-        target_h = random.randint(-h_jitter_max, h_jitter_max) if h_jitter_max > 0 else 0
-        target_v = random.randint(-v_jitter_max, v_jitter_max) if v_jitter_max > 0 else 0
-        
-        # Smooth transition between frames (30% new + 70% old)
-        self.last_h_offset = int(0.7 * self.last_h_offset + 0.3 * target_h)
-        self.last_v_offset = int(0.7 * self.last_v_offset + 0.3 * target_v)
-        
-        # Apply the jitter
-        if self.last_h_offset == 0 and self.last_v_offset == 0:
+        # If no jitter requested, return the frame unchanged
+        if h_jitter < 0.1 and v_jitter < 0.1:
             return frame
         
+        # Get frame dimensions
+        height, width = frame.shape[:2]
+        
+        # Create a translation matrix based on the current frame count to make it change over time
+        frame_based_seed = (self.frame_count % 100) + 1
+        np.random.seed(frame_based_seed)
+        
+        # Apply random jitter amounts - both positive and negative with higher values
+        h_shift = int(np.random.uniform(-h_jitter, h_jitter) * width / 50)  # More pronounced
+        v_shift = int(np.random.uniform(-v_jitter, v_jitter) * height / 50)  # More pronounced
+        
+        # Print the actual shift values for debugging
+        if abs(h_shift) > 0 or abs(v_shift) > 0:
+            print(f"Jitter shifts: h={h_shift}px, v={v_shift}px")
+        
         # Create translation matrix
-        M = np.float32([[1, 0, self.last_h_offset], [0, 1, self.last_v_offset]])
+        M = np.float32([[1, 0, h_shift], [0, 1, v_shift]])
         
         # Apply the translation
-        jittered = cv2.warpAffine(frame, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
-        
-        # Occasionally add a stronger "sync loss" effect
-        if random.random() < 0.01 * (self.params["h_jitter"] / 100.0):
-            sync_offset = random.randint(-30, 30)
-            if abs(sync_offset) > 0:
-                M_sync = np.float32([[1, 0, sync_offset], [0, 1, 0]])
-                jittered = cv2.warpAffine(jittered, M_sync, (w, h), borderMode=cv2.BORDER_REPLICATE)
+        jittered = cv2.warpAffine(frame, M, (width, height), borderMode=cv2.BORDER_REPLICATE)
         
         return jittered
     
