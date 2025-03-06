@@ -25,8 +25,8 @@ This option is not currently available. The next release will include a Windows 
 
 1. Clone this repository:
    ```
-   git clone https://github.com/yourusername/bitrot.git
-   cd bitrot
+   git clone https://github.com/squintdev/BitRot.git
+   cd BitRot
    ```
 
 2. Install the required dependencies:
@@ -55,6 +55,7 @@ If running from source, you'll need:
 3. Adjust the effect parameters using the sliders in the right panel
 4. Use the Preview Quality dropdown to adjust performance vs. quality during preview
 5. When satisfied with your effect, click "Save" to export the processed video
+6. You can adjust the order in which the effect sets are applied by changing the dropdown values in the top right.
 
 ## Current Status
 
